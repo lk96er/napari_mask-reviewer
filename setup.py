@@ -4,10 +4,10 @@ setup(
     name="napari-mask-reviewer",
     version="0.1.0",
     description="A napari plugin for reviewing and correcting segmentation masks",
-    author="Lucas Kühl",
-    author_email="l.kuehl@uni-muenster.de",
+    author="Your Name",
+    author_email="l.khl@pm.me",
     license="MIT",
-    url="https://github.com/username/napari-mask-reviewer",
+    url="https://github.com/lk96er/napari_mask_reviewer",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     python_requires=">=3.8",
@@ -18,8 +18,8 @@ setup(
         "numpy",
     ],
     entry_points={
-        "napari.manifest": [
-            "napari-mask-reviewer = napari_mask_reviewer:napari.yaml",
+        "napari.plugin": [
+            "napari-mask-reviewer = napari_mask_reviewer",
         ],
     },
 )

@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 from typing import List, Tuple
+from functools import partial
+from napari.qt.threading import thread_worker
 
 import napari
 import numpy as np
 from napari.utils.notifications import show_info
 from skimage.io import imread, imsave
 from qtpy.QtWidgets import (QVBoxLayout, QWidget, QPushButton,
-                            QFileDialog, QLabel, QSpinBox, QMessageBox)
+                          QFileDialog, QLabel, QSpinBox, QMessageBox)
 import os
-
 
 class MaskReviewer(QWidget):
     def __init__(self, napari_viewer: napari.Viewer):
@@ -141,7 +142,7 @@ class MaskReviewer(QWidget):
         self.layout.addWidget(save_all_button)
         
     @staticmethod
-    def _show_info(message: str):
+    def _show_info(self, message: str):
         """Show information in napari's notification system"""
         show_info(message)
 
@@ -173,7 +174,6 @@ class MaskReviewer(QWidget):
             except Exception as e:
                 self._show_info(f"Error loading image: {e}")
 
-    # [Continue with rest of the methods, replacing self._show_info statements with self._show_info]
     def load_mask(self):
         """Load the segmentation mask stack"""
         file_path, _ = QFileDialog.getOpenFileName(
