@@ -1,6 +1,6 @@
 # napari-mask-reviewer
 
-[![License MIT](https://img.shields.io/pypi/l/napari-mask-reviewer.svg?color=green)](https://github.com/yourusername/napari-mask-reviewer/raw/main/LICENSE)
+[![License MIT](https://img.shields.io/pypi/l/napari-mask-reviewer.svg?color=green)](https://github.com/lk96er/napari-mask-reviewer/raw/main/LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/napari-mask-reviewer.svg?color=green)](https://pypi.org/project/napari-mask-reviewer)
 
 A napari plugin for reviewing and correcting segmentation masks
