@@ -1,0 +1,10 @@
+name: napari-mask-reviewer
+display_name: Mask Reviewer
+contributions:
+  commands:
+    - id: napari-mask-reviewer.widget
+      python_name: napari_mask_reviewer._widget:MaskReviewer
+      title: Create Mask Reviewer Widget
+  widgets:
+    - command: napari-mask-reviewer.widget
+      display_name: Mask Reviewer
