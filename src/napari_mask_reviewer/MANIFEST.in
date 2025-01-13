@@ -1,1 +1,2 @@
-include src/napari_mask_reviewer/napari.yaml
+include README.md
+include LICENSE

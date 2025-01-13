@@ -11,11 +11,38 @@ from qtpy.QtWidgets import (QVBoxLayout, QWidget, QPushButton,
 import os
 import gc
 import psutil
+import logging
+import sys
+import traceback
+
+# Set up logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('napari_mask_reviewer.log'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger('napari_mask_reviewer')
+
+# Add error handling decorator
+def log_errors(func):
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"Error in {func.__name__}: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            raise
+    return wrapper
+
 
 class MaskReviewer(QWidget):
     # Constants for memory management
     MAX_MEMORY_PERCENT = 75  # Maximum percentage of system memory to use
 
+    @log_errors
     def __init__(self, napari_viewer: napari.Viewer):
         super().__init__()
         self.file_name = None
@@ -282,6 +309,7 @@ class MaskReviewer(QWidget):
         """Show information in napari's notification system"""
         show_info(message)
 
+    @log_errors
     def load_image(self):
         """Load the original image stack"""
         file_path, _ = QFileDialog.getOpenFileName(
@@ -317,8 +345,6 @@ class MaskReviewer(QWidget):
         if file_path:
             try:
                 self.mask_data = imread(file_path)
-                if len(self.mask_data.shape) != 3:
-                    raise ValueError("Mask must be 3D (t,y,x)")
 
                 # Add or update the mask layer
                 if 'Mask' in self.viewer.layers:
@@ -567,3 +593,14 @@ class MaskReviewer(QWidget):
 def load_data_worker(file_path):
     """Worker function for loading data asynchronously"""
     return imread(file_path)
+
+
+if __name__ == "__main__":
+    import pdb
+    import napari
+    from napari_mask_reviewer import MaskReviewer
+
+    viewer = napari.Viewer()
+    pdb.set_trace()  # This will start the debugger
+    widget = MaskReviewer(viewer)
+    napari.run()
