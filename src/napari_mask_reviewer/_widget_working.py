@@ -11,14 +11,10 @@ from qtpy.QtWidgets import (QVBoxLayout, QWidget, QPushButton,
 import os
 import gc
 import psutil
-from concurrent.futures import ThreadPoolExecutor
-import weakref
-
 
 class MaskReviewer(QWidget):
     # Constants for memory management
     MAX_MEMORY_PERCENT = 75  # Maximum percentage of system memory to use
-    CHUNK_SIZE = 100  # Number of frames to load at once for large files
 
     def __init__(self, napari_viewer: napari.Viewer):
         super().__init__()
@@ -33,11 +29,7 @@ class MaskReviewer(QWidget):
         self.current_file_index = 0
         self.file_pairs = []
         self.loading_workers = []
-        self._executor = ThreadPoolExecutor(max_workers=2)
         self.setup_ui()
-
-        # Set up a finalizer to ensure thread pool cleanup
-        weakref.finalize(self, self._cleanup_resources)
 
 
     def setup_ui(self):
@@ -67,137 +59,58 @@ class MaskReviewer(QWidget):
             area="right"
         )
 
-        # print the version of napari
-        self._show_info(f"DEBUG MODE: Loaded Mask Reviewer widget for napari {napari.__version__}")
+        def cleanup_layers(self):
+            """Clean up existing layers to free memory"""
+            try:
+                if 'Image' in self.viewer.layers:
+                    self.viewer.layers.remove('Image')
+                if 'Mask' in self.viewer.layers:
+                    self.viewer.layers.remove('Mask')
 
+                # Clear data references
+                self.image_data = None
+                self.mask_data = None
 
-    def cleanup_layers(self):
-        """Clean up existing layers to free memory"""
-        try:
-            if 'Image' in self.viewer.layers:
-                self.viewer.layers.remove('Image')
-            if 'Mask' in self.viewer.layers:
-                self.viewer.layers.remove('Mask')
+                # Force garbage collection
+                gc.collect()
+            except Exception as e:
+                self._show_info(f"Error during cleanup: {str(e)}")
 
-            # Clear data references
-            self.image_data = None
-            self.mask_data = None
+        def check_memory_usage(self, file_size: int) -> bool:
+            """Check if loading a file would exceed memory limits"""
+            available_memory = psutil.virtual_memory().available
+            return (file_size < available_memory * (self.MAX_MEMORY_PERCENT / 100))
 
-            # Force garbage collection
-            gc.collect()
-        except Exception as e:
-            self._show_info(f"Error during cleanup: {str(e)}")
+        def validate_data_pair(self, image_data, mask_data) -> bool:
+            """Validate image and mask compatibility"""
+            if len(image_data.shape) < 2 or len(mask_data.shape) < 2:
+                raise ValueError("Invalid data dimensions")
 
-    def check_memory_usage(self, file_size: int) -> bool:
-        """Check if loading a file would exceed memory limits"""
-        available_memory = psutil.virtual_memory().available
-        return (file_size < available_memory * (self.MAX_MEMORY_PERCENT / 100))
+            if image_data.shape[-2:] != mask_data.shape[-2:]:
+                raise ValueError(f"Image dimensions {image_data.shape} do not match mask dimensions {mask_data.shape}")
 
-    def validate_data_pair(self, image_data, mask_data) -> bool:
-        """Validate image and mask compatibility"""
-        if len(image_data.shape) < 2 or len(mask_data.shape) < 2:
-            raise ValueError("Invalid data dimensions")
-
-        if image_data.shape[-2:] != mask_data.shape[-2:]:
-            raise ValueError(f"Image dimensions {image_data.shape} do not match mask dimensions {mask_data.shape}")
-
-        return True
-
-    def _cleanup_resources(self):
-        """Ensure proper cleanup of resources"""
-        self._executor.shutdown(wait=False)
-        self.cleanup_layers()
-        gc.collect()
-
-    def cleanup_layers(self):
-        """Clean up existing layers to free memory"""
-        try:
-            for layer_name in ['Image', 'Mask']:
-                if layer_name in self.viewer.layers:
-                    self.viewer.layers.remove(layer_name)
-
-            # Clear data references
-            self.image_data = None
-            self.mask_data = None
-
-            # Cancel any pending workers
-            for worker in self.loading_workers:
-                try:
-                    worker.quit()
-                except Exception:
-                    pass
-            self.loading_workers.clear()
-
-            # Force garbage collection
-            gc.collect()
-        except Exception as e:
-            self._show_info(f"Error during cleanup: {str(e)}")
-
-    def check_memory_usage(self, file_size: int) -> bool:
-        """Check if loading a file would exceed memory limits"""
-        try:
-            memory = psutil.virtual_memory()
-            available_memory = memory.available
-            current_process = psutil.Process()
-            current_memory = current_process.memory_info().rss
-
-            # Calculate total memory after loading
-            projected_usage = current_memory + file_size
-            max_allowed = (memory.total * self.MAX_MEMORY_PERCENT) // 100
-
-            return projected_usage < max_allowed
-        except Exception as e:
-            self._show_info(f"Error checking memory: {str(e)}")
-            return False
+            return True
 
     @thread_worker
     def load_file_worker(self, file_path: str, is_mask: bool = False) -> Optional[np.ndarray]:
-        """Worker function for asynchronous file loading with chunking support"""
+        """Worker function for asynchronous file loading"""
         try:
             # Check file size before loading
             file_size = os.path.getsize(file_path)
             if not self.check_memory_usage(file_size):
                 raise MemoryError(f"File size {file_size} exceeds memory limits")
 
-            # Load file in chunks if it's large
-            if file_size > 1e9:  # 1GB threshold
-                return self._load_large_file(file_path, is_mask)
-            else:
-                data = imread(file_path)
-                if is_mask and not np.issubdtype(data.dtype, np.integer):
+            data = imread(file_path)
+
+            # Convert mask data to integer type if needed
+            if is_mask:
+                if not np.issubdtype(data.dtype, np.integer):
+                    self._show_info(f"Converting mask from {data.dtype} to integer type")
                     data = data.astype(np.uint32)
-                return data
-
-        except Exception as e:
-            self._show_info(f"Error loading file {os.path.basename(file_path)}: {str(e)}")
-            return None
-
-    def _load_large_file(self, file_path: str, is_mask: bool) -> Optional[np.ndarray]:
-        """Load large files in chunks to manage memory better"""
-        try:
-            # Get file info without loading
-            sample = imread(file_path, plugin='tifffile', key=0)
-            shape = list(imread(file_path, plugin='tifffile', key=range(2)).shape)
-            shape[0] = len(imread(file_path, plugin='tifffile', key=0))
-
-            # Pre-allocate array
-            dtype = np.uint32 if is_mask else sample.dtype
-            data = np.empty(shape, dtype=dtype)
-
-            # Load chunks
-            for i in range(0, shape[0], self.CHUNK_SIZE):
-                end = min(i + self.CHUNK_SIZE, shape[0])
-                chunk = imread(file_path, plugin='tifffile', key=range(i, end))
-                data[i:end] = chunk
-
-                # Update progress
-                progress = (end / shape[0]) * 100
-                self.progress_bar.setValue(int(progress))
 
             return data
-
         except Exception as e:
-            self._show_info(f"Error loading large file: {str(e)}")
+            self._show_info(f"Error loading file {os.path.basename(file_path)}: {str(e)}")
             return None
 
     def load_file_pair(self, index: int):
@@ -213,84 +126,11 @@ class MaskReviewer(QWidget):
         self.progress_bar.setValue(0)
 
         # Create workers for loading
-        image_worker = self.load_file_worker(image_path, is_mask=False)
-        mask_worker = self.load_file_worker(mask_path, is_mask=True)
+        image_worker = self.load_file_worker(image_path,is_mask=False)
+        mask_worker = self.load_file_worker(mask_path,is_mask=True)
 
         # Keep track of workers
         self.loading_workers.extend([image_worker, mask_worker])
-
-        def handle_load_error(e: Exception):
-            self._show_info(f"Error loading files: {str(e)}")
-            self.cleanup_layers()
-            self.progress_bar.setVisible(False)
-
-        try:
-            # Set up callbacks with error handling
-            def on_image_loaded(image_data):
-                try:
-                    self.image_data = image_data
-                    self.progress_bar.setValue(50)
-                except Exception as e:
-                    handle_load_error(e)
-
-            def on_mask_loaded(mask_data):
-                try:
-                    self.mask_data = mask_data
-                    self.progress_bar.setValue(75)
-                except Exception as e:
-                    handle_load_error(e)
-
-            def on_complete():
-                try:
-                    if self.image_data is not None and self.mask_data is not None:
-                        # Validate data
-                        if not self.validate_data_pair(self.image_data, self.mask_data):
-                            raise ValueError("Invalid data dimensions")
-
-                        # Add layers
-                        self.viewer.add_image(
-                            self.image_data,
-                            name='Image',
-                            colormap='gray'
-                        )
-                        self.viewer.add_labels(
-                            self.mask_data,
-                            name='Mask'
-                        )
-
-                        # Update UI
-                        self.frame_spinner.setMaximum(len(self.image_data) - 1)
-                        self.frame_spinner.setValue(0)
-                        self.status_label.setText(
-                            f"Loaded pair {index + 1}/{len(self.file_pairs)}: {os.path.basename(image_path)}"
-                        )
-
-                    self.progress_bar.setVisible(False)
-                    self._show_info("Loading complete")
-
-                except Exception as e:
-                    handle_load_error(e)
-
-                finally:
-                    # Clean up workers
-                    for worker in self.loading_workers:
-                        worker.quit()
-                    self.loading_workers.clear()
-                    gc.collect()
-
-            # Connect callbacks
-            image_worker.yielded.connect(on_image_loaded)
-            mask_worker.yielded.connect(on_mask_loaded)
-            image_worker.finished.connect(on_complete)
-            image_worker.errored.connect(handle_load_error)
-            mask_worker.errored.connect(handle_load_error)
-
-            # Start workers
-            image_worker.start()
-            mask_worker.start()
-
-        except Exception as e:
-            handle_load_error(e)
 
         # Set up callbacks
         def on_image_loaded(image_data):
@@ -725,14 +565,3 @@ class MaskReviewer(QWidget):
 def load_data_worker(file_path):
     """Worker function for loading data asynchronously"""
     return imread(file_path)
-
-
-if __name__  == "__main__":
-    # Create a napari viewer
-    viewer = napari.Viewer()
-
-    # Add the MaskReviewer widget to the viewer
-    MaskReviewer(viewer)
-
-    # Start the Qt event loop
-    napari.run()
