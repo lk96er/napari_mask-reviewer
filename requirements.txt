@@ -2,3 +2,4 @@ numpy~=1.26.4
 scikit-image~=0.22.0
 qtpy~=2.4.1
 setuptools~=68.2.2
+napari~=0.5.5

@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 from typing import List, Tuple
 from functools import partial
-from napari.qt.threading import thread_worker
-
 import napari
+from napari.qt.threading import thread_worker
 import numpy as np
 from napari.utils.notifications import show_info
 from skimage.io import imread, imsave
@@ -33,9 +32,6 @@ class MaskReviewer(QWidget):
 
         # Add loading controls
         self.setup_loading_controls()
-
-        # Add frame navigation controls
-        self.setup_frame_controls()
 
         # Add save controls
         self.setup_save_controls()
@@ -88,48 +84,6 @@ class MaskReviewer(QWidget):
         self.status_label = QLabel("")
         self.layout.addWidget(self.status_label)
 
-    def setup_frame_controls(self):
-        # Frame navigation
-        frame_label = QLabel("Current Frame:")
-        self.layout.addWidget(frame_label)
-
-        self.frame_spinner = QSpinBox()
-        self.frame_spinner.setMinimum(0)
-        self.frame_spinner.valueChanged.connect(self.update_frame)
-        self.layout.addWidget(self.frame_spinner)
-
-        # Frame navigation buttons
-        nav_widget = QWidget()
-        nav_layout = QVBoxLayout()
-
-        prev_button = QPushButton("Previous Frame")
-        prev_button.clicked.connect(self.previous_frame)
-        nav_layout.addWidget(prev_button)
-
-        next_button = QPushButton("Next Frame")
-        next_button.clicked.connect(self.next_frame)
-        nav_layout.addWidget(next_button)
-
-        nav_widget.setLayout(nav_layout)
-        self.layout.addWidget(nav_widget)
-
-        # File navigation for batch processing
-        file_nav_label = QLabel("File Navigation:")
-        self.layout.addWidget(file_nav_label)
-
-        file_nav_widget = QWidget()
-        file_nav_layout = QVBoxLayout()
-
-        prev_file_button = QPushButton("Previous File")
-        prev_file_button.clicked.connect(self.previous_file)
-        file_nav_layout.addWidget(prev_file_button)
-
-        next_file_button = QPushButton("Next File")
-        next_file_button.clicked.connect(self.next_file)
-        file_nav_layout.addWidget(next_file_button)
-
-        file_nav_widget.setLayout(file_nav_layout)
-        self.layout.addWidget(file_nav_widget)
 
     def setup_save_controls(self):
         # Save controls
@@ -205,24 +159,6 @@ class MaskReviewer(QWidget):
         )
         if self.output_dir:
             self._show_info(f"Output directory set to: {self.output_dir}")
-
-    def update_frame(self, frame_num):
-        """Update displayed frame"""
-        self.current_frame = frame_num
-        if 'Image' in self.viewer.layers:
-            self.viewer.layers['Image'].current_step = frame_num
-        if 'Mask' in self.viewer.layers:
-            self.viewer.layers['Mask'].current_step = frame_num
-
-    def next_frame(self):
-        """Go to next frame"""
-        if self.current_frame < self.frame_spinner.maximum():
-            self.frame_spinner.setValue(self.current_frame + 1)
-
-    def previous_frame(self):
-        """Go to previous frame"""
-        if self.current_frame > 0:
-            self.frame_spinner.setValue(self.current_frame - 1)
 
     def save_current_frame(self):
         """Save the current frame's mask"""

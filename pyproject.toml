@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "napari-mask-reviewer"
+version = "0.1.0"
+description = "A napari plugin for reviewing and correcting segmentation masks"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Lucas Kühl", email = "l.khl@pm.me"},
+]
+dependencies = [
+    "napari>=0.4.16",
+    "scikit-image>=0.19.0",
+    "qtpy",
+    "numpy",
+    "magicgui",
+    "napari[all]"
+]
+
+[project.entry-points."napari.manifest"]
+napari-mask-reviewer = "napari_mask_reviewer:napari.yaml"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
