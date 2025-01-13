@@ -33,6 +33,9 @@ class MaskReviewer(QWidget):
         # Add loading controls
         self.setup_loading_controls()
 
+        # Add frame navigation controls
+        self.setup_frame_controls()
+
         # Add save controls
         self.setup_save_controls()
 
@@ -68,22 +71,46 @@ class MaskReviewer(QWidget):
         self.mask_dir_button.clicked.connect(self.select_mask_dir)
         self.layout.addWidget(self.mask_dir_button)
 
-        self.batch_process_button = QPushButton("Start Batch Processing")
-        self.batch_process_button.clicked.connect(self.start_batch_processing)
-        self.layout.addWidget(self.batch_process_button)
+        self.output_dir_button = QPushButton("Select Output Directory")
+        self.output_dir_button.clicked.connect(self.select_output_dir)
+        self.layout.addWidget(self.output_dir_button)
 
         # Output directory selection
         output_label = QLabel("Output Directory:")
         self.layout.addWidget(output_label)
 
-        self.output_dir_button = QPushButton("Select Output Directory")
-        self.output_dir_button.clicked.connect(self.select_output_dir)
-        self.layout.addWidget(self.output_dir_button)
+        self.batch_process_button = QPushButton("Start Batch Processing")
+        self.batch_process_button.clicked.connect(self.start_batch_processing)
+        self.layout.addWidget(self.batch_process_button)
 
         # Status label
+        self.status_title = QLabel("Status:")
         self.status_label = QLabel("")
         self.layout.addWidget(self.status_label)
 
+    def setup_frame_controls(self):
+        self.frame_spinner = QSpinBox()
+        self.frame_spinner.setMinimum(0)
+        self.frame_spinner.valueChanged.connect(self.update_frame)
+        self.layout.addWidget(self.frame_spinner)
+
+        # File navigation for batch processing
+        file_nav_label = QLabel("File Navigation:")
+        self.layout.addWidget(file_nav_label)
+
+        file_nav_widget = QWidget()
+        file_nav_layout = QVBoxLayout()
+
+        prev_file_button = QPushButton("Previous File")
+        prev_file_button.clicked.connect(self.previous_file)
+        file_nav_layout.addWidget(prev_file_button)
+
+        next_file_button = QPushButton("Next File")
+        next_file_button.clicked.connect(self.next_file)
+        file_nav_layout.addWidget(next_file_button)
+
+        file_nav_widget.setLayout(file_nav_layout)
+        self.layout.addWidget(file_nav_widget)
 
     def setup_save_controls(self):
         # Save controls
@@ -96,7 +123,7 @@ class MaskReviewer(QWidget):
         self.layout.addWidget(save_all_button)
         
     @staticmethod
-    def _show_info(self, message: str):
+    def _show_info(message: str):
         """Show information in napari's notification system"""
         show_info(message)
 
@@ -108,9 +135,6 @@ class MaskReviewer(QWidget):
         if file_path:
             try:
                 self.image_data = imread(file_path)
-                if len(self.image_data.shape) != 3:
-                    raise ValueError("Image must be 3D (t,y,x)")
-
                 # Add or update the image layer
                 if 'Image' in self.viewer.layers:
                     self.viewer.layers['Image'].data = self.image_data
@@ -159,6 +183,24 @@ class MaskReviewer(QWidget):
         )
         if self.output_dir:
             self._show_info(f"Output directory set to: {self.output_dir}")
+
+    def update_frame(self, frame_num):
+        """Update displayed frame"""
+        self.current_frame = frame_num
+        if 'Image' in self.viewer.layers:
+            self.viewer.layers['Image'].current_step = frame_num
+        if 'Mask' in self.viewer.layers:
+            self.viewer.layers['Mask'].current_step = frame_num
+
+    def next_frame(self):
+        """Go to next frame"""
+        if self.current_frame < self.frame_spinner.maximum():
+            self.frame_spinner.setValue(self.current_frame + 1)
+
+    def previous_frame(self):
+        """Go to previous frame"""
+        if self.current_frame > 0:
+            self.frame_spinner.setValue(self.current_frame - 1)
 
     def save_current_frame(self):
         """Save the current frame's mask"""
@@ -325,10 +367,12 @@ class MaskReviewer(QWidget):
     def start_batch_processing(self):
         """Start processing the batch of files"""
         if not self.file_pairs:
+            self._show_info("No files to process. Select image and mask directories first.")
             self.status_label.setText("No files to process. Select image and mask directories first.")
             return
 
         if not self.output_dir:
+            self._show_info("Please select an output directory first")
             self.status_label.setText("Please select output directory first.")
             return
 
