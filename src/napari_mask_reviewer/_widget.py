@@ -219,7 +219,7 @@ class MaskReviewer(QWidget):
 
         try:
             # Use memory tracking for both loads
-            with self.memory_manager.track_allocation("loading_file_pair"):
+            with (self.memory_manager.track_allocation("loading_file_pair")):
                 # Load image
                 self._data['image_data'] = imread(image_path)
                 self.progress_bar.setValue(50)
@@ -248,8 +248,10 @@ class MaskReviewer(QWidget):
                 # Update UI
                 self.frame_spinner.setMaximum(len(self._data['image_data']) - 1)
                 self.frame_spinner.setValue(0)
+                trunc_basename = os.path.basename(image_path)[:20] + "..." if \
+                len(os.path.basename(image_path)) > 20 else os.path.basename(image_path) # Truncate basename for display
                 self.status_label.setText(
-                    f"Loaded pair {index + 1}/{len(self._data['file_pairs'])}: {os.path.basename(image_path)}"
+                    f"Loaded pair {index + 1}/{len(self._data['file_pairs'])}: {trunc_basename}"
                 )
 
             self.progress_bar.setVisible(False)
